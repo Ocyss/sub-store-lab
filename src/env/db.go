@@ -29,6 +29,9 @@ func (dbLogger) Infof(msg string, args ...any) {
 }
 
 func (dbLogger) Debugf(msg string, args ...any) {
+	if !Conf.Debug {
+		return
+	}
 	slog.Debug(fmt.Sprintf(msg, args...))
 }
 
