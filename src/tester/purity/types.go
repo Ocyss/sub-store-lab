@@ -249,20 +249,15 @@ func GetPurityIcon(i *models.Conf, riskScore *int) string {
 	if riskScore == nil {
 		return i.PurityIcon[0]
 	}
-
-	// 每 20 分为一档，最大不超过索引 5
-	idx := *riskScore / 20
-	if idx > 5 {
-		idx = 5
-	}
+	idx := min(*riskScore/20+1, 5)
 	return i.PurityIcon[idx]
 }
 
 // GetTypeIcon 根据使用类型返回类型图标
 // 类型映射：
 // 0: 🪨 未知/默认
-// 1: 🏠 Residential
-// 2: 🕋 Datacenter
+// 1: 🏠 家宽
+// 2: 🕋 商宽
 // 3: ⚰️ 其他/CDN
 func GetTypeIcon(i *models.Conf, usageType *UsageType) string {
 	if usageType == nil {
