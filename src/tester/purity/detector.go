@@ -171,7 +171,7 @@ func (d *IPPurityDetector) getProxyIP(transport http.RoundTripper) (string, erro
 	for _, service := range ipServices {
 		p.Go(func(ctx context.Context) (string, error) {
 			resp, err := client.R().SetContext(ctx).Get(service)
-			if err != nil {
+			if err != nil || resp != nil {
 				return "", fmt.Errorf("服务%s错误: %w", service, err)
 			}
 			if resp.StatusCode() != 200 {

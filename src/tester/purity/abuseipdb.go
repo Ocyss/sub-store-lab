@@ -80,7 +80,7 @@ func (d *AbuseIPDBDetector) Detect(client *resty.Client, ip string) (*IPInfo, er
 	}
 
 	var abuseResp AbuseIPDBResponse
-	resp, err := client.R().
+	_, err := client.R().
 		SetQueryParams(map[string]string{
 			"ipAddress":    ip,
 			"maxAgeInDays": "90",
@@ -92,10 +92,6 @@ func (d *AbuseIPDBDetector) Detect(client *resty.Client, ip string) (*IPInfo, er
 		Get(IPBlacklistAPI)
 	if err != nil {
 		return nil, fmt.Errorf("请求AbuseIPDB API失败: %w", err)
-	}
-
-	if resp.StatusCode() != 200 {
-		return nil, fmt.Errorf("AbuseIPDB API返回非200状态码: %d", resp.StatusCode())
 	}
 
 	result := &IPInfo{
@@ -115,14 +111,14 @@ func (d *AbuseIPDBDetector) Detect(client *resty.Client, ip string) (*IPInfo, er
 	switch abuseResp.Data.UsageType {
 	case "Data Center/Web Hosting/Transit", "Hosting", "Content Delivery Network", "Corporate", "Business", "Education", "University", "Government":
 		usageType = UsageTypeDatacenter
-		*result.RiskFactors.IsServer = true
+		result.RiskFactors.IsServer = lo.ToPtr(true)
 	case "Fixed Line ISP", "Consumer ISP":
 		usageType = UsageTypeResidential
 	case "Mobile ISP":
 		usageType = UsageTypeOther
 	case "Search Engine Spider", "Search Engine":
 		usageType = UsageTypeOther
-		*result.RiskFactors.IsBot = true
+		result.RiskFactors.IsBot = lo.ToPtr(true)
 	default:
 		usageType = UsageTypeOther
 	}
