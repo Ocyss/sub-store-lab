@@ -128,7 +128,7 @@ func createTask(cronJob *CronJob) gocron.Task {
 					"任务Key", job.Key,
 					"当前进度", count,
 					"总数", len(proxies),
-					"百分比", float64(count)*100.0/float64(len(proxies)),
+					"百分比", int(float64(count)*100.0/float64(len(proxies))),
 					"当前代理", name,
 				)
 			}
@@ -161,7 +161,9 @@ func createTask(cronJob *CronJob) gocron.Task {
 				slog.Error("failed to update result", "key", job.Key, "proxie", name, "error", err)
 				continue
 			}
-			slog.Debug("cron job run success", "key", job.Key, "proxie", name, "result", val)
+			if env.Conf.Debug {
+				slog.Debug("cron job run success", "key", job.Key, "proxie", name, "result", val)
+			}
 		}
 	}, cronJob)
 }

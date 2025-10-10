@@ -1,0 +1,31 @@
+services:
+  sub-store:
+    image: xream/sub-store:latest
+    container_name: sub-store
+    restart: always
+    volumes:
+      - ./data/sub-store-data:/opt/app/data
+    environment:
+      - SUB_STORE_FRONTEND_BACKEND_PATH=/abc123
+      - SUB_STORE_BACKEND_SYNC_CRON=55 4 * * *
+    networks:
+      - sub-store
+      - caddy
+    labels:
+      caddy: sub-store.abc.com
+      caddy.reverse_proxy: "{{upstreams 3001}}"
+  sub-store-lab:
+    image: ghcr.io/ocyss/sub-store-lab:latest
+    container_name: sub-store-lab
+    restart: always
+    networks:
+      - sub-store
+    env_file:
+      - .env
+    volumes:
+      - ./data:/app/data
+
+networks:
+  sub-store:
+  caddy:
+    external: true
