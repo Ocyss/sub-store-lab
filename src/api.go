@@ -1,13 +1,18 @@
 package main
 
 import (
+	"context"
+	"crypto/tls"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
+	"net"
 	"net/http"
 	"path/filepath"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/dgraph-io/badger/v4"
@@ -56,7 +61,18 @@ func ScriptHandler(c *gin.Context) {
 		p.Go(func() error {
 			delay, err := utils.CreateMihomoDelay(proxie)
 			if err != nil {
-				return fmt.Errorf("%s delay: %w", name, err)
+				var dnsErr *net.DNSError
+				if errors.As(err, &dnsErr) || errors.Is(err, context.DeadlineExceeded) {
+					return nil
+				}
+				var tlsErr *tls.RecordHeaderError
+				if errors.As(err, &tlsErr) {
+					return fmt.Errorf("%s: TLS错误", name)
+				}
+				if errors.Is(err, syscall.ECONNRESET) || errors.Is(err, io.EOF) {
+					return fmt.Errorf("%s: 连接重置", name)
+				}
+				return fmt.Errorf("%s: %w", name, err)
 			}
 			mu.Lock()
 			proxie[env.DelayKey] = delay

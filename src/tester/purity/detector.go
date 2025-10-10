@@ -171,8 +171,11 @@ func (d *IPPurityDetector) getProxyIP(transport http.RoundTripper) (string, erro
 	for _, service := range ipServices {
 		p.Go(func(ctx context.Context) (string, error) {
 			resp, err := client.R().SetContext(ctx).Get(service)
-			if err != nil || resp != nil {
+			if err != nil {
 				return "", fmt.Errorf("服务%s错误: %w", service, err)
+			}
+			if resp == nil {
+				return "", fmt.Errorf("服务%s返回空响应", service)
 			}
 			if resp.StatusCode() != 200 {
 				return "", fmt.Errorf("服务%s状态码: %d, 内容: %s", service, resp.StatusCode(), resp.String())
@@ -189,8 +192,10 @@ func (d *IPPurityDetector) getProxyIP(transport http.RoundTripper) (string, erro
 		})
 	}
 	resp, errs := p.Wait()
-	if len(resp) > 0 {
-		return resp[0], nil
+	for _, r := range resp {
+		if r != "" {
+			return r, nil
+		}
 	}
 	if errs != nil {
 		return "", fmt.Errorf("api地址全部获取失败, 请检查代理是否可用: %w", errs)
