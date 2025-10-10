@@ -1,6 +1,8 @@
 # Sub-Store-Lab 🧪
 
 > ⚠️ **注意**：本项目正在开发中，尚未经过长久测试，不建议在生产环境中使用。
+>
+> 🛑 **免责声明**：本项目仅供学习和研究使用，开发者不对因使用本项目而产生的任何直接或间接损失负责。请遵守当地法律法规，勿用于任何非法用途。
 
 ## 📚 项目介绍
 
@@ -26,24 +28,24 @@ TODO
 
 ```yml
 services:
-    sub-store:
-        image: xream/sub-store:http-meta
-        container_name: sub-store
-        restart: always
-        volumes:
-        - ./data/sub-store-data:/opt/app/data
-        environment:
-        - SUB_STORE_FRONTEND_BACKEND_PATH=/backend // 自行随机生成
-        ports:
-        - "8001:3000"
-    sub-store-lab:
-        image: ocyss/sub-store-lab:latest
-        container_name: sub-store-lab
-        restart: always
-        env_file:
-        - .env
-        volumes:
-        - ./data:/opt/app/data
+  sub-store:
+    image: xream/sub-store:http-meta
+    container_name: sub-store
+    restart: always
+    volumes:
+    - ./data/sub-store-data:/opt/app/data
+    environment:
+    - SUB_STORE_FRONTEND_BACKEND_PATH=/backend // 自行随机生成
+    ports:
+    - "8001:3000"
+  sub-store-lab:
+    image: ghcr.io/ocyss/sub-store-lab:latest
+    container_name: sub-store-lab
+    restart: always
+    env_file:
+    - .env
+    volumes:
+    - ./data:/opt/app/data
 ```
 
 后端地址则为 service_name:8000, `http://sub-store-lab:8000`
@@ -77,6 +79,7 @@ async function operator(...args) {
 - [VPS IP 质量检测完全指南：从小白到精通的实用教程 - idcflare.com](https://idcflare.com/t/topic/18792)
 - [IP 质量 - 快速排查清单 - linux.do](https://linux.do/t/topic/997322)
 
+- [metacubex/mihomo](https://github.com/metacubex/mihomo)
 - [sub-store-org/Sub-Store](https://github.com/sub-store-org/Sub-Store)
 - [beck-8/subs-check](https://github.com/beck-8/subs-check)
 - [bestruirui/BestSub](https://github.com/bestruirui/BestSub)
@@ -92,6 +95,6 @@ async function operator(...args) {
 
 - ipify.org, amazonaws.com, ifconfig.me, ident.me, icanhazip.com, api.ip.sb, ipinfo.io, ipapi.co
 
-## ⭐ 统计
+## ⭐ Stars 历史
 
-[![Stargazers over time](https://starchart.cc/ocyss/sub-store-lab.svg)](https://starchart.cc/ocyss/sub-store-lab)
+[![Stargazers over time](https://starchart.cc/ocyss/sub-store-lab.svg?variant=adaptive)](https://starchart.cc/ocyss/sub-store-lab)
