@@ -38,10 +38,6 @@ func ScriptHandler(c *gin.Context) {
 
 	cron := tester.GetCronManager()
 
-	testerFlag := lo.MapValues(tester.GetTesters(), func(_ models.ProxieTester, _ models.ProxieTesterType) int {
-		return 0
-	})
-
 	tCronJobKey := models.CronJobKey{
 		ConfId: args.Conf.Id,
 	}
@@ -97,23 +93,28 @@ func ScriptHandler(c *gin.Context) {
 	}
 
 	p = pool.New().WithMaxGoroutines(50).WithErrors()
+	filterProxie := lo.MapValues(tester.GetTesters(), func(t models.ProxieTester, _ models.ProxieTesterType) map[models.ProxieKey]struct{} {
+		return make(map[models.ProxieKey]struct{})
+	})
 	for _, proxie := range args.Proxies {
 		proxyInfo := args.GetProxieInfo(proxie)
-		for _, t := range tester.GetTesters() {
+		for name, t := range tester.GetTesters() {
 			p.Go(func() error {
 				cron.GetJob(tester.GetCronJob(&args.Conf, t))
-				name := t.Name()
 				resultKey := models.ProxieResultKey{
 					ProxieKey: proxyInfo.Id,
 					Type:      name,
 				}
 				result, err := env.QueryDb[map[string]any](resultKey.ToKey())
-				if err != nil && err != badger.ErrKeyNotFound {
+				if errors.Is(err, badger.ErrKeyNotFound) {
+					filterProxie[name][proxyInfo.Id] = struct{}{}
+					return nil
+				}
+				if err != nil {
 					return fmt.Errorf("tester[%s].GetResult id: %s: %w", name, proxyInfo.Id, err)
 				}
 				if len(result) > 0 {
 					mu.Lock()
-					testerFlag[name] = testerFlag[name] + 1
 					for k, v := range result {
 						proxie[env.Conf.SnakeKey(string(name), k)] = v
 					}
@@ -127,19 +128,27 @@ func ScriptHandler(c *gin.Context) {
 		slog.Error("tester.GetResult", "error", err)
 	}
 
-	for testerType := range testerFlag {
-		// 更新conf/cron，首次运行后立马后台刷新数据
-		// JSON平台强制后台刷新
+	for testerType, proxies := range filterProxie {
+		// 更新conf/cron
 		t := tester.GetTester(testerType)
 		job := cron.GetJob(tester.GetCronJob(&args.Conf, t))
-		if args.Platform != "JSON" && testerFlag[testerType] > 0 {
-			continue
+		if args.Platform == "JSON" {
+			// JSON平台强制后台刷新
+			go func() {
+				if err := job.Run(); err != nil {
+					slog.Error("testerFlag async job.Run", "error", err)
+				}
+			}()
+		} else if len(proxies) > 0 {
+			// 新节点立即运行一次
+			go func() {
+				job.RunTask(&tester.CronTask{
+					Key:          job.Key,
+					Conf:         args.Conf,
+					FilterProxie: proxies,
+				})
+			}()
 		}
-		go func() {
-			if err := job.Run(); err != nil {
-				slog.Error("testerFlag async job.Run", "error", err)
-			}
-		}()
 	}
 
 	if !args.Conf.NoBeautifyNodes {

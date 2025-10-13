@@ -20,22 +20,28 @@ type CronManager struct {
 
 var cronManager *CronManager
 
-type CronJob struct {
-	Key      models.CronJobKey
-	CronExpr string
-	Conf     models.Conf
+type CronTask struct {
+	Key          models.CronJobKey
+	Conf         models.Conf
+	FilterProxie map[models.ProxieKey]struct{}
+}
 
-	job gocron.Job
+type CronJob struct {
+	CronTask
+	CronExpr string
+	job      gocron.Job
 }
 
 func GetCronJob(conf *models.Conf, t models.ProxieTester) CronJob {
 	return CronJob{
-		Key: models.CronJobKey{
-			ConfId: conf.Id,
-			Type:   t.Name(),
+		CronTask: CronTask{
+			Key: models.CronJobKey{
+				ConfId: conf.Id,
+				Type:   t.Name(),
+			},
+			Conf: *conf,
 		},
 		CronExpr: t.Cron(conf),
-		Conf:     *conf,
 	}
 }
 
@@ -48,6 +54,10 @@ func (c *CronJob) Run() error {
 		return fmt.Errorf("job is nil")
 	}
 	return c.job.RunNow()
+}
+
+func (c *CronJob) RunTask(task *CronTask) {
+	taskFunc(task)
 }
 
 func InitCron() {
@@ -74,7 +84,7 @@ func (m *CronManager) GetJob(j CronJob) *CronJob {
 		}
 		job.CronExpr = j.CronExpr
 		job.Conf = j.Conf
-		cronManager.scheduler.Update(job.job.ID(), gocron.CronJob(job.CronExpr, false), createTask(job))
+		cronManager.scheduler.Update(job.job.ID(), gocron.CronJob(job.CronExpr, false), gocron.NewTask(taskFunc, job))
 		return job
 	}
 	return m.CreateJob(j)
@@ -82,13 +92,12 @@ func (m *CronManager) GetJob(j CronJob) *CronJob {
 
 func (m *CronManager) CreateJob(j CronJob) *CronJob {
 	cronJob := &CronJob{
-		Key:      j.Key,
+		CronTask: j.CronTask,
 		CronExpr: j.CronExpr,
-		Conf:     j.Conf,
 		job:      nil,
 	}
 	cronManager.jobs[j.Key] = cronJob
-	job, err := m.scheduler.NewJob(gocron.CronJob(cronJob.CronExpr, false), createTask(cronJob))
+	job, err := m.scheduler.NewJob(gocron.CronJob(cronJob.CronExpr, false), gocron.NewTask(taskFunc, cronJob))
 	if err != nil {
 		slog.Error("failed to create cron job", "key", cronJob.Key, "error", err)
 		return cronJob
@@ -97,75 +106,78 @@ func (m *CronManager) CreateJob(j CronJob) *CronJob {
 	return cronJob
 }
 
-func createTask(cronJob *CronJob) gocron.Task {
-	return gocron.NewTask(func(job *CronJob) {
-		defer func() {
-			if r := recover(); r != nil {
-				slog.Error("cron job panic", "key", job.Key, "error", r)
-			}
-		}()
-		slog.Info("running cron job", "id", job.Key)
-		tester := GetTester(job.Key.Type)
-		db := env.GetDB()
-		proxies := make(map[models.ProxieKey]map[string]any)
+func taskFunc(task *CronTask) {
+	defer func() {
+		if r := recover(); r != nil {
+			slog.Error("cron job panic", "key", task.Key, "error", r)
+		}
+	}()
+	slog.Info("running cron job", "id", task.Key)
+	tester := GetTester(task.Key.Type)
+	db := env.GetDB()
+	proxies := make(map[models.ProxieKey]map[string]any)
 
-		err := env.QueryDbPrefix(func(txn *badger.Txn, k []byte, v map[string]any) error {
-			var proxieKey models.ProxieKey
-			proxieKey.FromKey(k)
-			proxies[proxieKey] = v
-			return nil
-		}, job.Key.ToProxiePrefixKey(), false)
+	err := env.QueryDbPrefix(func(txn *badger.Txn, k []byte, v map[string]any) error {
+		var proxieKey models.ProxieKey
+		proxieKey.FromKey(k)
+		if len(task.FilterProxie) > 0 {
+			if _, ok := task.FilterProxie[proxieKey]; !ok {
+				return nil
+			}
+		}
+		proxies[proxieKey] = v
+		return nil
+	}, task.Key.ToProxiePrefixKey(), false)
+	if err != nil {
+		slog.Error("failed to restore proxie from database", "key", task.Key, "error", err)
+		return
+	}
+	count := 0
+	for name, proxie := range proxies {
+		count++
+		if count%5 == 0 || count == 1 || count == len(proxies) {
+			slog.Info(
+				"定时任务进度",
+				"任务Key", task.Key,
+				"当前进度", count,
+				"总数", len(proxies),
+				"百分比", int(float64(count)*100.0/float64(len(proxies))),
+				"当前代理", name,
+			)
+		}
+		time.Sleep(time.Second * 1)
+		t, err := utils.CreateMihomoProxy(proxie)
 		if err != nil {
-			slog.Error("failed to restore proxie from database", "key", job.Key, "error", err)
-			return
+			slog.Error("failed to create mihomo proxy", "key", task.Key, "proxie", name, "error", err)
+			continue
 		}
-		count := 0
-		for name, proxie := range proxies {
-			count++
-			if count%5 == 0 || count == 1 || count == len(proxies) {
-				slog.Info(
-					"定时任务进度",
-					"任务Key", job.Key,
-					"当前进度", count,
-					"总数", len(proxies),
-					"百分比", int(float64(count)*100.0/float64(len(proxies))),
-					"当前代理", name,
-				)
-			}
-			time.Sleep(time.Second * 1)
-			t, err := utils.CreateMihomoProxy(proxie)
-			if err != nil {
-				slog.Error("failed to create mihomo proxy", "key", job.Key, "proxie", name, "error", err)
-				continue
-			}
-			val, err := tester.RunTest(&models.ProxieInfo{
-				Id:   name,
-				Conf: &job.Conf,
-			}, t)
-			if err != nil {
-				slog.Error("failed to run test", "key", job.Key, "proxie", name, "error", err)
-				continue
-			}
-			err = db.Update(func(txn *badger.Txn) error {
-				data, err := json.Marshal(val)
-				if err != nil {
-					return err
-				}
-				resultKey := models.ProxieResultKey{
-					ProxieKey: name,
-					Type:      job.Key.Type,
-				}
-				return txn.SetEntry(badger.NewEntry(resultKey.ToKey(), data).WithTTL(time.Hour * 48))
-			})
-			if err != nil {
-				slog.Error("failed to update result", "key", job.Key, "proxie", name, "error", err)
-				continue
-			}
-			if env.Conf.Debug {
-				slog.Debug("cron job run success", "key", job.Key, "proxie", name, "result", val)
-			}
+		val, err := tester.RunTest(&models.ProxieInfo{
+			Id:   name,
+			Conf: &task.Conf,
+		}, t)
+		if err != nil {
+			slog.Error("failed to run test", "key", task.Key, "proxie", name, "error", err)
+			continue
 		}
-	}, cronJob)
+		err = db.Update(func(txn *badger.Txn) error {
+			data, err := json.Marshal(val)
+			if err != nil {
+				return err
+			}
+			resultKey := models.ProxieResultKey{
+				ProxieKey: name,
+				Type:      task.Key.Type,
+			}
+			return txn.SetEntry(badger.NewEntry(resultKey.ToKey(), data).WithTTL(time.Hour * 48))
+		})
+		if err != nil {
+			slog.Error("failed to update result", "key", task.Key, "proxie", name, "error", err)
+			continue
+		}
+		if env.Conf.Debug {
+			slog.Debug("cron job run success", "key", task.Key, "proxie", name, "result", val)
+		}
+	}
 }
 
 func StopCron() {
