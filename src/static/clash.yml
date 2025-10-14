@@ -1,0 +1,22 @@
+dns:
+  enable: true
+  ipv6: false
+  enhanced-mode: redir-host
+  use-hosts: false
+  use-system-hosts: false
+  default-nameserver:
+    - tls://223.5.5.5
+    - tls://114.114.114
+  nameserver:
+    - https://doh.pub/dns-query
+    - https://dns.alidns.com/dns-query
+    - https://doh.360.cn/dns-query
+    - https://1.12.12.12/dns-query
+    - https://dns.cloudflare.com/dns-query
+  proxy-server-nameserver:
+    - https://doh.pub/dns-query
+    - https://dns.alidns.com/dns-query
+    - https://doh.360.cn/dns-query
+    - https://1.12.12.12/dns-query
+    - https://dns.cloudflare.com/dns-query
+  respect-rules: false

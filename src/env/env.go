@@ -17,16 +17,22 @@ var (
 )
 
 type envConfig struct {
-	Host            string `env:"HOST" envDefault:"0.0.0.0"`
-	Port            int    `env:"PORT" envDefault:"8000"`
-	Debug           bool   `env:"DEBUG" envDefault:"false"`
-	NoBeautifyNodes bool   `env:"NO_BEAUTIFY_NODES" envDefault:"false"`
-	LogLevel        string `env:"LOG_LEVEL" envDefault:"info"`
-	DataDir         string `env:"DATA_DIR" envDefault:"./data"`
-	Prefix          string `env:"PREFIX" envDefault:"_lab"`
-	DelayTestUrl    string `env:"DELAY_TEST_URL" envDefault:"https://www.gstatic.com/generate_204"`
-	EnableTester    string `env:"ENABLE_TESTER"`
-	EnableEnvProxy  bool   `env:"ENABLE_ENV_PROXY" envDefault:"false"`
+	Host string `env:"HOST" envDefault:"0.0.0.0"`
+	Port int    `env:"PORT" envDefault:"8000"`
+
+	Debug    bool   `env:"DEBUG" envDefault:"false"`
+	LogLevel string `env:"LOG_LEVEL" envDefault:"info"`
+
+	DataDir string `env:"DATA_DIR" envDefault:"./data"`
+	Prefix  string `env:"PREFIX" envDefault:"_lab"`
+
+	// mihomoDNS配置路径，true使用内置dns `src/clash.yml`, false 禁用mihomoDNS
+	EnableMihomoDNS string `env:"ENABLE_MIHOMO_DNS" envDefault:"true"`
+
+	DelayTestUrl string `env:"DELAY_TEST_URL" envDefault:"https://www.gstatic.com/generate_204"`
+
+	DisableTester   string `env:"DISABLE_TESTER"` // 逗号分割, 不区分大小写，默认不禁用: Purity,Speed
+	DisableBeautify bool   `env:"Disable_BEAUTIFY" envDefault:"false"`
 
 	IpQualityAPIKey  string `env:"IPQUALITY_API_KEY"`  // https://www.ipqualityscore.com/create-account
 	AbuseIPDBAPIKey  string `env:"ABUSEIPDB_API_KEY"`  // https://www.abuseipdb.com/account

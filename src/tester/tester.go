@@ -3,28 +3,37 @@ package tester
 import (
 	"log/slog"
 	"reflect"
+	"slices"
 	"strings"
 
 	"github.com/ocyss/sub-store-lab/src/env"
 	"github.com/ocyss/sub-store-lab/src/models"
-	"github.com/samber/lo"
 )
 
 var testers = map[models.ProxieTesterType]models.ProxieTester{}
 
 func init() {
-	var set map[string]struct{}
-	if env.Conf.EnableTester != "" {
-		set = lo.Keyify(strings.Split(env.Conf.EnableTester, ","))
+	var disables []string
+	if env.Conf.DisableTester != "" {
+		for d := range strings.SplitSeq(env.Conf.DisableTester, ",") {
+			d = strings.ToUpper(strings.TrimSpace(d))
+			if len(d) > 0 {
+				disables = append(disables, d)
+			}
+		}
 	}
 	for _, v := range []models.ProxieTester{&Purity{}, &Speed{}} {
 		name := v.Name()
-		if _, ok := set[string(name)]; len(set) > 0 && !ok {
+		upperName := string(name)
+		if len(name) > 0 {
+			upperName = strings.ToUpper(upperName)
+		}
+		if slices.Contains(disables, upperName) {
 			continue
 		}
 		testers[name] = v
 	}
-	slog.Debug("init testers", "set", set, "testers", testers)
+	slog.Debug("init testers", "disables", disables, "testers", testers)
 }
 
 func GetTesters() map[models.ProxieTesterType]models.ProxieTester {

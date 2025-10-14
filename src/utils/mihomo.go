@@ -3,17 +3,26 @@ package utils
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net"
 	"net/http"
 	"strconv"
 	"time"
 
 	"github.com/metacubex/mihomo/adapter"
+	"github.com/metacubex/mihomo/component/resolver"
+	"github.com/metacubex/mihomo/component/trie"
+	"github.com/metacubex/mihomo/config"
 	C "github.com/metacubex/mihomo/constant"
+	providerTypes "github.com/metacubex/mihomo/constant/provider"
+	_ "github.com/metacubex/mihomo/hub/executor"
 	"github.com/ocyss/sub-store-lab/src/env"
+	"gopkg.in/yaml.v3"
+
+	_ "unsafe"
 )
 
-var envProxy C.Dialer
+// var envProxy C.Dialer
 
 // func init() {
 // 	var err error
@@ -111,7 +120,7 @@ func CreateMihomoProxy(proxie map[string]any) (http.RoundTripper, error) {
 	return t, nil
 }
 
-func CreateMihomoDelay(proxie map[string]any) (uint16, error) {
+func RunMihomoDelayTest(proxie map[string]any) (uint16, error) {
 	proxy, err := adapter.ParseProxy(proxie)
 	if err != nil {
 		return 0, fmt.Errorf("CreateMihomoDelay adapter.ParseProxy: %w", err)
@@ -123,4 +132,24 @@ func CreateMihomoDelay(proxie map[string]any) (uint16, error) {
 		return 0, fmt.Errorf("CreateMihomoDelay proxy.URLTest: %w", err)
 	}
 	return delay, nil
+}
+
+//go:linkname parseDNS github.com/metacubex/mihomo/config.parseDNS
+func parseDNS(rawCfg *config.RawConfig, hosts *trie.DomainTrie[resolver.HostValue], ruleProviders map[string]providerTypes.RuleProvider) (*config.DNS, error)
+
+//go:linkname updateDNS github.com/metacubex/mihomo/hub/executor.updateDNS
+func updateDNS(c *config.DNS, generalIPv6 bool)
+
+func UpdateMihomoDNS(conf []byte) {
+	var c config.RawConfig
+	if err := yaml.Unmarshal(conf, &c); err != nil {
+		slog.Error("UpdateMihomoDNS yaml.Unmarshal", "error", err)
+		return
+	}
+	dns, err := parseDNS(&c, nil, nil)
+	if err != nil {
+		slog.Error("UpdateMihomoDNS parseDNS", "error", err)
+		return
+	}
+	updateDNS(dns, false)
 }

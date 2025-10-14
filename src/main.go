@@ -12,18 +12,28 @@ import (
 	"time"
 
 	"github.com/ocyss/sub-store-lab/src/env"
+	"github.com/ocyss/sub-store-lab/src/static"
 	"github.com/ocyss/sub-store-lab/src/tester"
+	"github.com/ocyss/sub-store-lab/src/utils"
 
 	glog "github.com/gin-contrib/slog"
 	"github.com/gin-gonic/gin"
 )
 
-//go:embed script.js
-var scriptJs string
-
 func main() {
 	env.InitService()
 	tester.InitCron()
+
+	if env.Conf.EnableMihomoDNS == "true" {
+		utils.UpdateMihomoDNS(static.ClashYml)
+	} else if env.Conf.EnableMihomoDNS != "false" {
+		conf, err := os.ReadFile(env.Conf.EnableMihomoDNS)
+		if err != nil {
+			slog.Error("ReadMihomoDNSFile", "error", err)
+			return
+		}
+		utils.UpdateMihomoDNS(conf)
+	}
 
 	if env.Conf.Debug {
 		gin.SetMode(gin.DebugMode)
@@ -48,7 +58,7 @@ func main() {
 	}
 	addr := fmt.Sprintf("%s:%d", env.Conf.Host, env.Conf.Port)
 	slog.Info("Server listening on", "address", addr)
-	fmt.Printf("可拷贝下面脚本内容，并调整后端地址后使用: \n\n%s\n\n", scriptJs)
+	fmt.Printf("可拷贝下面脚本内容，并调整后端地址后使用: \n\n%s\n\n", static.ScriptJs)
 	srv := &http.Server{
 		Addr:    addr,
 		Handler: r.Handler(),

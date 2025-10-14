@@ -51,7 +51,7 @@ func DefaultConf() *Conf {
 		MinSpeed:        256,
 		DownloadTimeout: 8,
 		DownloadMB:      20,
-		NoBeautifyNodes: env.Conf.NoBeautifyNodes,
+		NoBeautifyNodes: env.Conf.DisableBeautify,
 		PurityIconStr:   PurityIconStr,
 		TypeIconStr:     TypeIconStr,
 		PurityIcon:      PurityIcon,

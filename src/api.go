@@ -55,7 +55,7 @@ func ScriptHandler(c *gin.Context) {
 		}
 		name := utils.GetD(proxie, "name", "unknown")
 		p.Go(func() error {
-			delay, err := utils.CreateMihomoDelay(proxie)
+			delay, err := utils.RunMihomoDelayTest(proxie)
 			if err != nil {
 				var dnsErr *net.DNSError
 				if errors.As(err, &dnsErr) || errors.Is(err, context.DeadlineExceeded) {
