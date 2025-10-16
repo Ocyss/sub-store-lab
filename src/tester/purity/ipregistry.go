@@ -231,7 +231,7 @@ func (d *IPRegistryDetector) Name() string {
 	return "IPRegistry"
 }
 
-func (d *IPRegistryDetector) Detect(client *resty.Client, ip string) (*IPInfo, error) {
+func (d *IPRegistryDetector) Detect(client *resty.Client, ip string) (*proxiePurity, error) {
 	if client == nil {
 		return nil, fmt.Errorf("HTTP客户端不能为空")
 	}
@@ -254,7 +254,7 @@ func (d *IPRegistryDetector) Detect(client *resty.Client, ip string) (*IPInfo, e
 		return nil, fmt.Errorf("IPRegistry API返回非200状态码: %d", resp.StatusCode())
 	}
 
-	result := &IPInfo{
+	result := &proxiePurity{
 		IP:         lo.ToPtr(ipRegistryResp.IP),
 		Country:    lo.ToPtr(ipRegistryResp.Location.Country.Code),
 		Region:     lo.ToPtr(ipRegistryResp.Location.Region.Name),

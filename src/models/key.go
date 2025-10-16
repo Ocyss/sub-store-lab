@@ -15,7 +15,8 @@ type (
 	ProxieTester     interface {
 		Name() ProxieTesterType
 		Cron(*Conf) string
-		RunTest(proxy *ProxieInfo, transport http.RoundTripper) (map[string]any, error)
+		GetResult(proxy *ProxieInfo) (any, error)
+		RunTest(proxy *ProxieInfo, transport http.RoundTripper) (any, error)
 	}
 )
 

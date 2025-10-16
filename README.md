@@ -10,7 +10,7 @@
 
 Sub-Store-Lab 是一个用于订阅节点管理、测试和美化的工具框架。它通过与 Sub-Store 解耦的方式，提供节点美化、排序以及性能测试功能。
 
-推荐客户端: [clash-party](https://github.com/mihomo-party-org/clash-party) 自带sub-store前端
+推荐客户端: [sparkle](https://github.com/xishang0128/sparkle) 自带sub-store前端
 
 拉取平台设为JSON即可强制后台刷新
 

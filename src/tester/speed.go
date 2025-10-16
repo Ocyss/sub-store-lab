@@ -11,17 +11,17 @@ import (
 	"time"
 
 	"github.com/metacubex/mihomo/common/convert"
-	"github.com/ocyss/sub-store-lab/src/env"
 	"github.com/ocyss/sub-store-lab/src/models"
 	"github.com/ocyss/sub-store-lab/src/utils"
+	"github.com/samber/lo"
 	"resty.dev/v3"
 )
 
-type IPLatencyResult struct {
-	Speed     string // 下载速度 2.1MB | 672KB
-	SpeedMbps int    // 下载速度(Mbps)
+type SpeedResult struct {
+	Speed     *string // 下载速度 2.1MB | 672KB
+	SpeedMbps int     // 下载速度(Mbps)
 
-	LastUpdated time.Time `map:"-"` // 最后更新时间
+	LastUpdated time.Time // 最后更新时间
 }
 
 type Speed struct{}
@@ -34,25 +34,20 @@ func (s *Speed) Cron(conf *models.Conf) string {
 	return conf.SpeedCron
 }
 
-func (s *Speed) GetResult(proxy *models.ProxieInfo) (map[string]any, bool, error) {
-	if proxy == nil {
-		return map[string]any{
-			"status": "error",
-			"error":  "无效的代理信息",
-		}, false, nil
+func (s *Speed) GetResult(proxy *models.ProxieInfo) (any, error) {
+	result, err := getResult[SpeedResult](s.Name(), proxy)
+	if err != nil {
+		return nil, err
 	}
-	resultKey := models.ProxieResultKey{
-		ProxieKey: proxy.Id,
-		Type:      s.Name(),
+	if r, ok := result.(SpeedResult); ok {
+		if r.SpeedMbps < proxy.Conf.MinSpeed*8/1024 {
+			return nil, nil
+		}
 	}
-	result, err := env.QueryDb[map[string]any](resultKey.ToKey())
-	if err == nil && len(result) != 0 {
-		return result, true, nil
-	}
-	return nil, false, err
+	return result, nil
 }
 
-func (s *Speed) RunTest(proxy *models.ProxieInfo, transport http.RoundTripper) (_ map[string]any, err error) {
+func (s *Speed) RunTest(proxy *models.ProxieInfo, transport http.RoundTripper) (_ any, err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			stack := debug.Stack()
@@ -91,9 +86,9 @@ func (s *Speed) RunTest(proxy *models.ProxieInfo, transport http.RoundTripper) (
 
 	elapsed := time.Since(start).Seconds()
 
-	result := &IPLatencyResult{
+	result := &SpeedResult{
 		SpeedMbps:   int((float64(n)/(1024*1024))/elapsed) * 8,
-		Speed:       utils.HumanBytes(int64(float64(n) / elapsed)),
+		Speed:       lo.ToPtr(utils.HumanBytes(int64(float64(n) / elapsed))),
 		LastUpdated: time.Now(),
 	}
 
@@ -104,7 +99,7 @@ func (s *Speed) RunTest(proxy *models.ProxieInfo, transport http.RoundTripper) (
 		"下载内容", utils.HumanBytes(int64(n)),
 		"下载速度", result.Speed,
 	)
-	return StructToMap(result), nil
+	return result, nil
 }
 
 var _ models.ProxieTester = &Speed{}

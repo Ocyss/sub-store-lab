@@ -5,16 +5,14 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/caarlos0/env/v11"
 	"github.com/joho/godotenv"
 )
 
-var (
-	Conf     envConfig
-	DelayKey string
-)
+var Conf envConfig
+
+// DelayKey string
 
 type envConfig struct {
 	Host string `env:"HOST" envDefault:"0.0.0.0"`
@@ -23,16 +21,15 @@ type envConfig struct {
 	Debug    bool   `env:"DEBUG" envDefault:"false"`
 	LogLevel string `env:"LOG_LEVEL" envDefault:"info"`
 
-	DataDir string `env:"DATA_DIR" envDefault:"./data"`
-	Prefix  string `env:"PREFIX" envDefault:"_lab"`
+	DataDir         string `env:"DATA_DIR" envDefault:"./data"`
+	OutputNodesJson bool   `env:"OUTPUT_NODES_JSON" envDefault:"true"`
 
 	// mihomoDNS配置路径，true使用内置dns `src/clash.yml`, false 禁用mihomoDNS
 	EnableMihomoDNS string `env:"ENABLE_MIHOMO_DNS" envDefault:"true"`
 
 	DelayTestUrl string `env:"DELAY_TEST_URL" envDefault:"https://www.gstatic.com/generate_204"`
 
-	DisableTester   string `env:"DISABLE_TESTER"` // 逗号分割, 不区分大小写，默认不禁用: Purity,Speed
-	DisableBeautify bool   `env:"Disable_BEAUTIFY" envDefault:"false"`
+	DisableTester string `env:"DISABLE_TESTER"` // 逗号分割, 不区分大小写，默认不禁用: Purity,Speed
 
 	IpQualityAPIKey  string `env:"IPQUALITY_API_KEY"`  // https://www.ipqualityscore.com/create-account
 	AbuseIPDBAPIKey  string `env:"ABUSEIPDB_API_KEY"`  // https://www.abuseipdb.com/account
@@ -64,7 +61,7 @@ func init() {
 	if err != nil {
 		log.Fatalf("failed to get absolute path: %v", err)
 	}
-	DelayKey = Conf.SnakeKey("delay")
+	// DelayKey = Conf.SnakeKey("delay")
 	initLog()
 
 	if Conf.Debug {
@@ -77,10 +74,10 @@ func InitService() {
 	initDB()
 }
 
-func (e *envConfig) SnakeKey(args ...string) string {
-	// snakeArgs := make([]string, len(args))
-	// for i, arg := range args {
-	// 	snakeArgs[i] = lo.SnakeCase(arg)
-	// }
-	return e.Prefix + "_" + strings.Join(args, "_")
-}
+// func (e *envConfig) SnakeKey(args ...string) string {
+// 	// snakeArgs := make([]string, len(args))
+// 	// for i, arg := range args {
+// 	// 	snakeArgs[i] = lo.SnakeCase(arg)
+// 	// }
+// 	return e.Prefix + "_" + strings.Join(args, "_")
+// }

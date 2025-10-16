@@ -47,7 +47,7 @@ func (d *IPApiDetector) Name() string {
 	return "IPApi"
 }
 
-func (d *IPApiDetector) Detect(client *resty.Client, ip string) (*IPInfo, error) {
+func (d *IPApiDetector) Detect(client *resty.Client, ip string) (*proxiePurity, error) {
 	if client == nil {
 		return nil, fmt.Errorf("HTTP客户端不能为空")
 	}
@@ -70,7 +70,7 @@ func (d *IPApiDetector) Detect(client *resty.Client, ip string) (*IPInfo, error)
 		return nil, fmt.Errorf("IP-API返回错误: %s", ipApiResp.Status)
 	}
 
-	result := &IPInfo{
+	result := &proxiePurity{
 		IP:      lo.ToPtr(ipApiResp.Query),
 		Country: lo.ToPtr(ipApiResp.CountryCode),
 		Region:  lo.ToPtr(ipApiResp.RegionName),

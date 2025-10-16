@@ -64,30 +64,11 @@ func GetD[T any](node map[string]any, key string, defaultValue T) T {
 	return defaultValue
 }
 
-func DeepCopyMap(src map[string]any) map[string]any {
-	if src == nil {
-		return nil
-	}
-
-	dst := make(map[string]any, len(src))
-	for k, v := range src {
-		dst[k] = deepCopyValue(v)
-	}
-	return dst
-}
-
-func deepCopyValue(v any) any {
-	switch val := v.(type) {
-	case map[string]any:
-		return DeepCopyMap(val)
-	case []any:
-		newArr := make([]any, len(val))
-		for i, elem := range val {
-			newArr[i] = deepCopyValue(elem)
-		}
-		return newArr
-	default:
-		// 基本类型可以直接复制
-		return val
+func DeepCopy(src, dst any) error {
+	if tmp, err := json.Marshal(src); err != nil {
+		return err
+	} else {
+		err = json.Unmarshal(tmp, dst)
+		return err
 	}
 }

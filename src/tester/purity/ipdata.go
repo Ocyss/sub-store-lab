@@ -147,7 +147,7 @@ func NewIPDataDetector(apiKey *ApiKey) *IPDataDetector {
 	}
 }
 
-func (d *IPDataDetector) Detect(client *resty.Client, ip string) (*IPInfo, error) {
+func (d *IPDataDetector) Detect(client *resty.Client, ip string) (*proxiePurity, error) {
 	if client == nil {
 		return nil, fmt.Errorf("HTTP客户端不能为空")
 	}
@@ -171,7 +171,7 @@ func (d *IPDataDetector) Detect(client *resty.Client, ip string) (*IPInfo, error
 		return nil, fmt.Errorf("IPData API返回非200状态码: %d", resp.StatusCode())
 	}
 
-	result := &IPInfo{
+	result := &proxiePurity{
 		IP:         lo.ToPtr(ipDataResp.IP),
 		Country:    lo.ToPtr(ipDataResp.CountryCode),
 		Region:     lo.ToPtr(ipDataResp.Region),

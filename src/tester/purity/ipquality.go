@@ -88,7 +88,7 @@ func (d *IPQualityDetector) Name() string {
 	return "IPQuality"
 }
 
-func (d *IPQualityDetector) Detect(client *resty.Client, ip string) (*IPInfo, error) {
+func (d *IPQualityDetector) Detect(client *resty.Client, ip string) (*proxiePurity, error) {
 	if client == nil {
 		return nil, fmt.Errorf("HTTP客户端不能为空")
 	}
@@ -115,7 +115,7 @@ func (d *IPQualityDetector) Detect(client *resty.Client, ip string) (*IPInfo, er
 		return nil, fmt.Errorf("IPQualityScore API返回错误: %s", ipQualityResp.Message)
 	}
 
-	result := &IPInfo{
+	result := &proxiePurity{
 		IP:         lo.ToPtr(ip),
 		Country:    lo.ToPtr(ipQualityResp.CountryCode),
 		Region:     lo.ToPtr(ipQualityResp.Region),

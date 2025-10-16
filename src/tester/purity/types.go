@@ -42,59 +42,59 @@ func (r *RiskFactors) AllNil() bool {
 	return r.IsProxy == nil && r.IsTor == nil && r.IsVPN == nil && r.IsServer == nil && r.IsAbuse == nil && r.IsBot == nil
 }
 
-type IPInfo struct {
-	UsageType *UsageType // 使用类型（如住宅、数据中心等）
-	// CompanyType *string     // 公司类型
+type proxiePurity struct {
+	UsageType   *UsageType  // 使用类型（如住宅、数据中心等）
 	RiskScore   *int        // 风险评分
 	Country     *string     // 国家
-	RiskFactors RiskFactors // 风险因子
 	IP          *string     // IP地址
-	Region      *string     `map:"-"` // 地区/省份
-	City        *string     `map:"-"` // 城市
+	RiskFactors RiskFactors // 风险因子
 
-	DetectName *string `map:"-"`
-	Error      *string `map:"-"` // 错误信息（可选）
+	Region *string // 地区/省份
+	City   *string // 城市
+
+	DetectName *string
+	Error      *string // 错误信息（可选）
 }
 
-type IPInfoResult struct {
-	IPInfo
+type PurityResult struct {
+	proxiePurity
 	CountryFlag string // 国家旗帜emoji
 	PurityIcon  string // IP纯净度图标
 	TypeIcon    string // IP使用类型图标
 
-	LastUpdated time.Time          `map:"-"` // 最后更新时间
-	Results     map[string]*IPInfo `map:"+"`
+	LastUpdated time.Time // 最后更新时间
+	Results     map[string]*proxiePurity
 }
 
 type IPDetector interface {
 	Name() string
-	Detect(client *resty.Client, ip string) (*IPInfo, error)
+	Detect(client *resty.Client, ip string) (*proxiePurity, error)
 }
 
-func MergeIPInfo(conf *models.Conf, results []*IPInfo) *IPInfoResult {
+func MergeIPInfo(conf *models.Conf, results []*proxiePurity) *PurityResult {
 	if len(results) == 0 {
-		return &IPInfoResult{
-			IPInfo: IPInfo{
+		return &PurityResult{
+			proxiePurity: proxiePurity{
 				Error: lo.ToPtr("没有可用的检测结果"),
 			},
 		}
 	}
 
 	// 过滤掉错误结果
-	validResults := lo.Filter(results, func(r *IPInfo, _ int) bool {
+	validResults := lo.Filter(results, func(r *proxiePurity, _ int) bool {
 		return r.Error == nil || *r.Error == ""
 	})
 
 	if len(validResults) == 0 {
-		return &IPInfoResult{
-			IPInfo: IPInfo{
+		return &PurityResult{
+			proxiePurity: proxiePurity{
 				Error: lo.ToPtr("没有可用的检测结果"),
 			},
 		}
 	}
 
 	// 初始化合并结果
-	merged := IPInfoResult{
+	merged := PurityResult{
 		LastUpdated: time.Now(),
 	}
 
@@ -111,13 +111,13 @@ func MergeIPInfo(conf *models.Conf, results []*IPInfo) *IPInfoResult {
 	// 统计各类型的使用次数
 	usageTypeCounts := make(map[UsageType]int)
 
-	merged.Country = findFirstNonNil(validResults, func(r *IPInfo) *string { return r.Country })
-	merged.Region = findFirstNonNil(validResults, func(r *IPInfo) *string { return r.Region })
-	merged.City = findFirstNonNil(validResults, func(r *IPInfo) *string { return r.City })
+	merged.Country = findFirstNonNil(validResults, func(r *proxiePurity) *string { return r.Country })
+	merged.Region = findFirstNonNil(validResults, func(r *proxiePurity) *string { return r.Region })
+	merged.City = findFirstNonNil(validResults, func(r *proxiePurity) *string { return r.City })
 
 	// merged.CompanyType = findFirstNonNil(validResults, func(r *IPInfo) *string { return r.CompanyType })
 
-	merged.IP = findFirstNonNil(validResults, func(r *IPInfo) *string { return r.IP })
+	merged.IP = findFirstNonNil(validResults, func(r *proxiePurity) *string { return r.IP })
 
 	// 处理风险评分和风险因子
 	totalRiskScore := 0
@@ -132,6 +132,14 @@ func MergeIPInfo(conf *models.Conf, results []*IPInfo) *IPInfoResult {
 		} else if !result.RiskFactors.AllNil() {
 			countRiskScore++
 			score := 0
+			if result.UsageType != nil {
+				switch *result.UsageType {
+				case UsageTypeDatacenter:
+					score += 30
+				case UsageTypeOther:
+					score += 20
+				}
+			}
 			if result.RiskFactors.IsProxy != nil && *result.RiskFactors.IsProxy {
 				score += 30
 			}
@@ -166,7 +174,7 @@ func MergeIPInfo(conf *models.Conf, results []*IPInfo) *IPInfoResult {
 	}
 
 	// 设置风险评分
-	merged.RiskScore = lo.ToPtr(totalRiskScore / countRiskScore)
+	riskScore := totalRiskScore / countRiskScore
 
 	// 设置风险因子（根据权重）
 	threshold := float64(len(validResults)) * 0.3 // 30%权重阈值
@@ -190,10 +198,29 @@ func MergeIPInfo(conf *models.Conf, results []*IPInfo) *IPInfoResult {
 			return count == lo.Max(lo.Values(usageTypeCounts))
 		})
 		merged.UsageType = lo.ToPtr(mostCommonType)
+	} else {
+		merged.UsageType = lo.ToPtr(UsageTypeOther)
 	}
 
+	{
+		switch *merged.UsageType {
+		case UsageTypeDatacenter:
+			riskScore = max(riskScore, 50)
+		case UsageTypeOther:
+			riskScore = max(riskScore, 30)
+		}
+		if merged.RiskFactors.IsProxy != nil && *merged.RiskFactors.IsProxy {
+			riskScore = max(riskScore, 20)
+		}
+		if merged.RiskFactors.IsVPN != nil && *merged.RiskFactors.IsVPN {
+			riskScore = max(riskScore, 10)
+		}
+	}
+
+	merged.RiskScore = lo.ToPtr(riskScore)
+
 	if env.Conf.Debug {
-		allResults := make(map[string]*IPInfo)
+		allResults := make(map[string]*proxiePurity)
 		for _, result := range results {
 			if result.DetectName != nil {
 				allResults[*result.DetectName] = result
@@ -209,16 +236,16 @@ func MergeIPInfo(conf *models.Conf, results []*IPInfo) *IPInfoResult {
 	return &merged
 }
 
-func CreateEmptyIPInfo(ip string) *IPInfo {
-	return &IPInfo{
+func CreateEmptyIPInfo(ip string) *proxiePurity {
+	return &proxiePurity{
 		IP:        nil,
 		RiskScore: nil,
 		Error:     nil,
 	}
 }
 
-func CreateErrorIPInfo(err error) *IPInfo {
-	return &IPInfo{
+func CreateErrorIPInfo(err error) *proxiePurity {
+	return &proxiePurity{
 		Error: lo.ToPtr(err.Error()),
 	}
 }
@@ -258,7 +285,6 @@ func GetPurityIcon(i *models.Conf, riskScore *int) string {
 // 0: 🪨 未知/默认
 // 1: 🏠 家宽
 // 2: 🕋 商宽
-// 3: ⚰️ 其他/CDN
 func GetTypeIcon(i *models.Conf, usageType *UsageType) string {
 	if usageType == nil {
 		return i.TypeIcon[0]
@@ -269,7 +295,7 @@ func GetTypeIcon(i *models.Conf, usageType *UsageType) string {
 	case UsageTypeDatacenter:
 		return i.TypeIcon[2]
 	default:
-		return i.TypeIcon[3]
+		return i.TypeIcon[0]
 	}
 }
 

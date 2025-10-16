@@ -97,7 +97,7 @@ func NewIPPurityDetector(conf *models.Conf, timeout time.Duration) *IPPurityDete
 	}
 }
 
-func (d *IPPurityDetector) DetectIP(transport http.RoundTripper) (*IPInfoResult, error) {
+func (d *IPPurityDetector) DetectIP(transport http.RoundTripper) (*PurityResult, error) {
 	if transport == nil {
 		return nil, fmt.Errorf("传输层不能为空")
 	}
@@ -113,10 +113,10 @@ func (d *IPPurityDetector) DetectIP(transport http.RoundTripper) (*IPInfoResult,
 		SetHeader("User-Agent", convert.RandUserAgent())
 	defer client.Close()
 
-	p := pool.NewWithResults[*IPInfo]().WithMaxGoroutines(2).WithErrors()
+	p := pool.NewWithResults[*proxiePurity]().WithMaxGoroutines(2).WithErrors()
 	for _, detector := range d.detectors {
 		detector := detector // 避免闭包问题
-		p.Go(func() (*IPInfo, error) {
+		p.Go(func() (*proxiePurity, error) {
 			result, err := detector.Detect(client, ip)
 			if err != nil {
 				return nil, fmt.Errorf("[%s]失败: %w", detector.Name(), err)

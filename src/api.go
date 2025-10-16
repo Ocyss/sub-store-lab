@@ -11,7 +11,6 @@ import (
 	"net"
 	"net/http"
 	"path/filepath"
-	"sync"
 	"syscall"
 	"time"
 
@@ -45,15 +44,27 @@ func ScriptHandler(c *gin.Context) {
 		return txn.Delete(k)
 	}, tCronJobKey.ToProxiePrefixKey(), false)
 
-	var mu sync.Mutex
 	p := pool.New().WithMaxGoroutines(50).WithErrors()
 	db := env.GetDB()
+
+	subs := make(map[string]*beautify.Subscription)
 
 	for _, proxie := range args.Proxies {
 		if proxie["servername"] == nil && proxie["sni"] != "" {
 			proxie["servername"] = proxie["sni"]
 		}
-		name := utils.GetD(proxie, "name", "unknown")
+
+		subName, subNum := beautify.GetSubNameAndNum(proxie)
+		if _, ok := subs[subName]; !ok {
+			subs[subName] = &beautify.Subscription{
+				SubName:    subName,
+				SubNameNum: subNum,
+				Nodes:      make([]*beautify.ProxieNode, 0),
+			}
+		}
+
+		node := subs[subName].AddNode(proxie)
+
 		p.Go(func() error {
 			delay, err := utils.RunMihomoDelayTest(proxie)
 			if err != nil {
@@ -63,26 +74,26 @@ func ScriptHandler(c *gin.Context) {
 				}
 				var tlsErr *tls.RecordHeaderError
 				if errors.As(err, &tlsErr) {
-					return fmt.Errorf("%s: TLS错误", name)
+					return fmt.Errorf("%s: TLS错误", node.Name)
 				}
 				if errors.Is(err, syscall.ECONNRESET) || errors.Is(err, io.EOF) {
-					return fmt.Errorf("%s: 连接重置", name)
+					return fmt.Errorf("%s: 连接重置", node.Name)
 				}
-				return fmt.Errorf("%s: %w", name, err)
+				return fmt.Errorf("%s: %w", node.Name, err)
 			}
-			mu.Lock()
-			proxie[env.DelayKey] = delay
-			mu.Unlock()
+
+			node.SetDelay(delay)
+
 			data, err := json.Marshal(proxie)
 			if err != nil {
-				return fmt.Errorf("%s json.Marshal: %w", name, err)
+				return fmt.Errorf("%s json.Marshal: %w", node.Name, err)
 			}
 			proxyInfo := args.GetProxieInfo(proxie)
 			err = db.Update(func(txn *badger.Txn) error {
 				return txn.SetEntry(badger.NewEntry(proxyInfo.Id.ToKey(), data).WithTTL(time.Hour * 48))
 			})
 			if err != nil {
-				return fmt.Errorf("%s db.Update: %w", name, err)
+				return fmt.Errorf("%s db.Update: %w", node.Name, err)
 			}
 			return nil
 		})
@@ -96,34 +107,31 @@ func ScriptHandler(c *gin.Context) {
 	filterProxie := lo.MapValues(tester.GetTesters(), func(t models.ProxieTester, _ models.ProxieTesterType) map[models.ProxieKey]struct{} {
 		return make(map[models.ProxieKey]struct{})
 	})
-	for _, proxie := range args.Proxies {
-		proxyInfo := args.GetProxieInfo(proxie)
-		for name, t := range tester.GetTesters() {
-			p.Go(func() error {
-				cron.GetJob(tester.GetCronJob(&args.Conf, t))
-				resultKey := models.ProxieResultKey{
-					ProxieKey: proxyInfo.Id,
-					Type:      name,
-				}
-				result, err := env.QueryDb[map[string]any](resultKey.ToKey())
-				if errors.Is(err, badger.ErrKeyNotFound) {
-					filterProxie[name][proxyInfo.Id] = struct{}{}
-					return nil
-				}
-				if err != nil {
-					return fmt.Errorf("tester[%s].GetResult id: %s: %w", name, proxyInfo.Id, err)
-				}
-				if len(result) > 0 {
-					mu.Lock()
-					for k, v := range result {
-						proxie[env.Conf.SnakeKey(string(name), k)] = v
+
+	for _, sub := range subs {
+		for _, node := range sub.Nodes {
+			proxyInfo := args.GetProxieInfo(node.Proxie)
+			for name, t := range tester.GetTesters() {
+				p.Go(func() error {
+					cron.GetJob(tester.GetCronJob(&args.Conf, t))
+					result, err := t.GetResult(proxyInfo)
+					if err != nil {
+						return fmt.Errorf("tester[%s].GetResult id: %s: %w", name, proxyInfo.Id, err)
 					}
-					mu.Unlock()
-				}
-				return nil
-			})
+					switch result := result.(type) {
+					case nil:
+						filterProxie[name][proxyInfo.Id] = struct{}{}
+					case tester.SpeedResult:
+						node.Speed = result
+					case tester.PurityResult:
+						node.Purity = result
+					}
+					return nil
+				})
+			}
 		}
 	}
+
 	if err := p.Wait(); err != nil {
 		slog.Error("tester.GetResult", "error", err)
 	}
@@ -151,13 +159,14 @@ func ScriptHandler(c *gin.Context) {
 		}
 	}
 
-	if !args.Conf.NoBeautifyNodes {
-		args.Proxies = beautify.ProcessNodes(args.Proxies)
+	res := beautify.ProcessNodes(&args.Conf, subs)
+	if env.Conf.OutputNodesJson || env.Conf.Debug {
+		err := utils.JsonToFile(subs, filepath.Join(env.Conf.DataDir, "sub-store-lab.json"))
+		if err != nil {
+			slog.Error("utils.JsonToFile", "error", err)
+		}
 	}
-	if env.Conf.Debug {
-		utils.JsonToFile(args.Proxies, filepath.Join(env.Conf.DataDir, "sub-store-lab.json"))
-	}
-	c.JSON(http.StatusOK, args.Proxies)
+	c.JSON(http.StatusOK, res)
 }
 
 func parseBody(c *gin.Context) (*models.Args, error) {

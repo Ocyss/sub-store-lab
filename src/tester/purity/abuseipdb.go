@@ -70,7 +70,7 @@ func (d *AbuseIPDBDetector) Name() string {
 	return "AbuseIPDB"
 }
 
-func (d *AbuseIPDBDetector) Detect(client *resty.Client, ip string) (*IPInfo, error) {
+func (d *AbuseIPDBDetector) Detect(client *resty.Client, ip string) (*proxiePurity, error) {
 	if client == nil {
 		return nil, fmt.Errorf("HTTP客户端不能为空")
 	}
@@ -94,7 +94,7 @@ func (d *AbuseIPDBDetector) Detect(client *resty.Client, ip string) (*IPInfo, er
 		return nil, fmt.Errorf("请求AbuseIPDB API失败: %w", err)
 	}
 
-	result := &IPInfo{
+	result := &proxiePurity{
 		IP:         lo.ToPtr(abuseResp.Data.IPAddress),
 		Country:    lo.ToPtr(abuseResp.Data.CountryCode),
 		RiskScore:  lo.ToPtr(abuseResp.Data.AbuseConfidenceScore),

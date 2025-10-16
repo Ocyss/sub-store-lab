@@ -42,7 +42,7 @@ func (d *IPInfoDetector) Name() string {
 	return "IPInfo"
 }
 
-func (d *IPInfoDetector) Detect(client *resty.Client, ip string) (*IPInfo, error) {
+func (d *IPInfoDetector) Detect(client *resty.Client, ip string) (*proxiePurity, error) {
 	if client == nil {
 		return nil, fmt.Errorf("HTTP客户端不能为空")
 	}
@@ -61,7 +61,7 @@ func (d *IPInfoDetector) Detect(client *resty.Client, ip string) (*IPInfo, error
 		return nil, fmt.Errorf("IPInfo API返回非200状态码: %d", resp.StatusCode())
 	}
 
-	result := &IPInfo{
+	result := &proxiePurity{
 		IP:         lo.ToPtr(ipInfoResp.IP),
 		Country:    lo.ToPtr(ipInfoResp.Country),
 		Region:     lo.ToPtr(ipInfoResp.Region),
