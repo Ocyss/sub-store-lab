@@ -16,8 +16,12 @@ RUN --mount=type=cache,target=/go/pkg/mod/ \
 ENV GOCACHE=/root/.cache/go-build
 RUN --mount=type=cache,target=/go/pkg/mod/ \
     --mount=type=cache,target="/root/.cache/go-build" \
-    go build -o main ./src/*.go
+    go build -ldflags="-s -w" -o main ./src/*.go
 
+RUN --mount=type=cache,target=/var/cache/apk \
+    apk add --no-cache upx
+
+RUN upx --lzma /app/main
 
 FROM alpine:latest AS runtime
 

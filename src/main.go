@@ -25,7 +25,7 @@ func main() {
 	tester.InitCron()
 
 	if env.Conf.EnableMihomoDNS == "true" {
-		utils.UpdateMihomoDNS(static.ClashYml)
+		utils.UpdateMihomoDNS(static.MihomoConfigYamlByte)
 	} else if env.Conf.EnableMihomoDNS != "false" {
 		conf, err := os.ReadFile(env.Conf.EnableMihomoDNS)
 		if err != nil {

@@ -23,7 +23,7 @@ func TestUpdateMihomoDNS(t *testing.T) {
 	done := make(chan struct{})
 
 	go func() {
-		UpdateMihomoDNS(static.ClashYml)
+		UpdateMihomoDNS(static.MihomoConfigYamlByte)
 
 		domains := []string{
 			"google.com",

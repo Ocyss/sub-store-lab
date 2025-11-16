@@ -1,6 +1,7 @@
 package env
 
 import (
+	"io"
 	"log"
 	"log/slog"
 	"os"
@@ -8,9 +9,14 @@ import (
 
 	"github.com/caarlos0/env/v11"
 	"github.com/joho/godotenv"
+	"github.com/ocyss/sub-store-lab/src/static"
+	"gopkg.in/yaml.v3"
 )
 
-var Conf envConfig
+var (
+	Conf         envConfig
+	OverrideYaml map[string]any
+)
 
 // DelayKey string
 
@@ -70,7 +76,43 @@ func init() {
 }
 
 func InitService() {
-	os.MkdirAll(Conf.DataDir, 0o755)
+	if err := os.MkdirAll(Conf.DataDir, 0o755); err != nil {
+		log.Fatalf("failed to create data dir: %v", err)
+	}
+
+	overridePath := filepath.Join(Conf.DataDir, "override.yaml")
+	f, err := os.OpenFile(overridePath, os.O_RDWR|os.O_CREATE, 0o644)
+	if err != nil {
+		log.Fatalf("failed to open override.yaml: %v", err)
+	}
+	defer f.Close()
+
+	stat, err := f.Stat()
+	if err != nil {
+		log.Fatalf("failed to stat override.yaml: %v", err)
+	}
+
+	if stat.Size() == 0 {
+		// 文件为空则写入默认内容
+		if _, err := f.Write(static.OverrideYamlByte); err != nil {
+			log.Fatalf("failed to write default override.yaml: %v", err)
+		}
+		// 写入后重置读指针
+		if _, err := f.Seek(0, 0); err != nil {
+			log.Fatalf("failed to seek override.yaml: %v", err)
+		}
+	}
+
+	overrideYaml, err := io.ReadAll(f)
+	if err != nil {
+		log.Fatalf("failed to read override.yaml: %v", err)
+	}
+
+	err = yaml.Unmarshal(overrideYaml, &OverrideYaml)
+	if err != nil {
+		log.Fatalf("failed to unmarshal override.yaml: %v", err)
+	}
+
 	initDB()
 }
 

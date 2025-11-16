@@ -11,6 +11,7 @@ import (
 	"net"
 	"net/http"
 	"path/filepath"
+	"sync"
 	"syscall"
 	"time"
 
@@ -104,6 +105,7 @@ func ScriptHandler(c *gin.Context) {
 	}
 
 	p = pool.New().WithMaxGoroutines(50).WithErrors()
+	var filterProxieMu sync.Mutex
 	filterProxie := lo.MapValues(tester.GetTesters(), func(t models.ProxieTester, _ models.ProxieTesterType) map[models.ProxieKey]struct{} {
 		return make(map[models.ProxieKey]struct{})
 	})
@@ -120,7 +122,9 @@ func ScriptHandler(c *gin.Context) {
 					}
 					switch result := result.(type) {
 					case nil:
+						filterProxieMu.Lock()
 						filterProxie[name][proxyInfo.Id] = struct{}{}
+						filterProxieMu.Unlock()
 					case tester.SpeedResult:
 						node.Speed = result
 					case tester.PurityResult:
